@@ -1,0 +1,53 @@
+version: "3.8"
+services:
+  db:
+    image: postgres:12-alpine
+    volumes:
+      - ./db-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_MULTIPLE_DATABASES: pond, patient, registration
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: topsecret
+    ports:
+      - 15432:5432
+    healthcheck:
+      test: pg_isready -d postgres -U $$POSTGRES_USER
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+  flyway:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+    build:
+      dockerfile: images/flyway/Dockerfile
+      context: ./
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_HOST: db
+      POSTGRES_PASSWORD: topsecret
+    depends_on:
+      - db
+    entrypoint: ["sh", "/scripts/run.sh"]
+    volumes:
+      - ./scripts:/scripts
+      - ./prod-master-data:/flyway/sql
+      - ./flyway.conf:/flyway/conf/flyway.conf
+  seed:
+    build:
+      dockerfile: images/flyway/Dockerfile
+      context: ./
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_HOST: db
+      POSTGRES_PASSWORD: topsecret
+    depends_on:
+      - db
+    entrypoint: ["bash", "/scripts/seed.sh"]
+    volumes:
+      - ./scripts:/scripts
+      - ./prod-master-data:/flyway/sql
+      - ./flyway.conf:/flyway/conf/flyway.conf
