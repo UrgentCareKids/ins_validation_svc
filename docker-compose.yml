@@ -26,9 +26,9 @@ services:
       dockerfile: images/flyway/Dockerfile
       context: ./
     environment:
-      POSTGRES_USER: pguser
-      POSTGRES_HOST: db
-      POSTGRES_PASSWORD: topsecret
+      POSTGRES_USER: ${{ secrets.dev_user }}
+      POSTGRES_HOST: ${{ secrets.dev_url }}
+      POSTGRES_PASSWORD: ${{ secrets.dev_pwd }}
     depends_on:
       - db
     entrypoint: ["sh", "/scripts/run.sh"]
