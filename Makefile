@@ -36,11 +36,11 @@ core:
 	docker-compose up -d db
 	docker-compose run flyway
 
-# up:
-# 	${MAKE} core
-# 	docker-compose run seed
+up:
+	${MAKE} core
+
 	
-# down:
-# 	docker-compose down --remove-orphans
-# 	sudo chmod -R 777 db-data
-# 	rm -r db-data || true
+down:
+	docker-compose down --remove-orphans
+	sudo chmod -R 777 db-data
+	rm -r db-data || true
