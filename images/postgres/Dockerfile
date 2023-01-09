@@ -1,3 +1,3 @@
-FROM postgres:12-alpine
+FROM postgres:14-alpine
 
 COPY db-data /var/lib/postgresql/data

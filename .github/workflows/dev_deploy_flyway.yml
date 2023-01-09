@@ -41,11 +41,11 @@ jobs:
       - name: Build Docker container
         id: build-image
         run: |
-          sudo docker build -t $ECR_REGISTRY/gsh/postgres12:dev -f images/postgres/Dockerfile .
+          sudo docker build -t $ECR_REGISTRY/gsh/ins_validation_svc:dev -f images/postgres/Dockerfile .
         env:
           ECR_REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
       - name: Push container to Amazon ECR
-        run: docker push $ECR_REGISTRY/gsh/postgres12:dev
+        run: docker push $ECR_REGISTRY/gsh/ins_validation_svc:dev
         env:
           ECR_REGISTRY: ${{ secrets.AWS_ECR_REGISTRY }}
   deploy:
@@ -56,7 +56,7 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
-      - uses: UrgentCareKids/database-patient-svc/.github/dev_sync/@v1.0.1
+      - uses: UrgentCareKids/ins_validation_svc/.github/dev_sync/@v1.0.1
         with:
           url: ${{ secrets.dev_url }}
           user: ${{ secrets.dev_user }}

@@ -38,7 +38,7 @@ core:
 
 up:
 	${MAKE} core
-	docker-compose run seed
+
 	
 down:
 	docker-compose down --remove-orphans

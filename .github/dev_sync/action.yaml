@@ -16,7 +16,7 @@ inputs:
   locations:
     description: Comma-separated list of locations to scan recursively for migrations
     required: true
-    default: filesystem:./prod-master-data
+    default: filesystem:./ins-validation-svc
 runs:
   using: docker
   image: docker://flyway/flyway:8.4.0
