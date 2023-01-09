@@ -36,3 +36,4 @@ services:
       - ./scripts:/scripts
       - ./ins-validation-svc:/flyway/sql
       - ./flyway.conf:/flyway/conf/flyway.conf
+      # test
