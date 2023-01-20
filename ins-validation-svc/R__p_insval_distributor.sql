@@ -18,5 +18,5 @@ $procedure$
 
 -- Permissions
 
-ALTER PROCEDURE public.insval_distributor(int4) OWNER TO babylon;
-GRANT ALL ON PROCEDURE public.insval_distributor(int4) TO babylon;
+-- ALTER PROCEDURE public.insval_distributor(int4) OWNER TO babylon;
+-- GRANT ALL ON PROCEDURE public.insval_distributor(int4) TO babylon;

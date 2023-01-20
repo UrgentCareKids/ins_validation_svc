@@ -48,5 +48,5 @@ $procedure$
 
 -- Permissions
 
-ALTER PROCEDURE public.insval_queue_loader(inout int4, in json) OWNER TO babylon;
-GRANT ALL ON PROCEDURE public.insval_queue_loader(inout int4, in json) TO babylon;
+-- ALTER PROCEDURE public.insval_queue_loader(inout int4, in json) OWNER TO babylon;
+-- GRANT ALL ON PROCEDURE public.insval_queue_loader(inout int4, in json) TO babylon;

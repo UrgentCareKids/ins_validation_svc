@@ -45,5 +45,5 @@ $procedure$
 
 -- Permissions
 
-ALTER PROCEDURE public.wave_recycler(int4) OWNER TO babylon;
-GRANT ALL ON PROCEDURE public.wave_recycler(int4) TO babylon;
+-- ALTER PROCEDURE public.wave_recycler(int4) OWNER TO babylon;
+-- GRANT ALL ON PROCEDURE public.wave_recycler(int4) TO babylon;

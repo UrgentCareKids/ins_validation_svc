@@ -11,5 +11,5 @@ $function$
 
 -- Permissions
 
-ALTER FUNCTION public.mstr_notify_ins_validation() OWNER TO babylon;
-GRANT ALL ON FUNCTION public.mstr_notify_ins_validation() TO babylon;
+-- ALTER FUNCTION public.mstr_notify_ins_validation() OWNER TO babylon;
+-- GRANT ALL ON FUNCTION public.mstr_notify_ins_validation() TO babylon;

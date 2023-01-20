@@ -305,5 +305,5 @@ $procedure$
 
 -- Permissions
 
-ALTER PROCEDURE public.wave_parser(varchar) OWNER TO babylon;
-GRANT ALL ON PROCEDURE public.wave_parser(varchar) TO babylon;
+-- ALTER PROCEDURE public.wave_parser(varchar) OWNER TO babylon;
+-- GRANT ALL ON PROCEDURE public.wave_parser(varchar) TO babylon;
