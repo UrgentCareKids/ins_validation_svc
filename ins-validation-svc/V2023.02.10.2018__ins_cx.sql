@@ -16,7 +16,7 @@ CREATE TABLE public.ins_cx (
 
 -- Permissions
 
-ALTER TABLE public.ins_cx OWNER TO babylon;
+-- ALTER TABLE public.ins_cx OWNER TO babylon;
 
 -- public.ins_pri_list definition
 
@@ -43,4 +43,4 @@ CREATE TABLE public.ins_pri_list (
 
 -- Permissions
 
-ALTER TABLE public.ins_pri_list OWNER TO babylon;
+-- ALTER TABLE public.ins_pri_list OWNER TO babylon;
