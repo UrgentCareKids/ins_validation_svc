@@ -5,7 +5,7 @@
 -- DROP TABLE map_srv.ins_to_map;
 
 --DROP TABLE map_srv.ins_to_map;
-CREATE TABLE IF NOT EXISTS map_srv.ins_to_map
+CREATE TABLE IF NOT EXISTS public.ins_to_map
 (
 	seq_id bigserial NOT NULL   
 	,inc_source VARCHAR(256) NOT NULL   
