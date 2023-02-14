@@ -18,4 +18,3 @@ CREATE TABLE IF NOT EXISTS public.ins_to_map
 
 -- Permissions
 
-GRANT ALL ON TABLE map_srv.ins_to_map TO ;
