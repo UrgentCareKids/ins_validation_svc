@@ -30,11 +30,16 @@ begin
 		
 		update public.insval_queue 
 		set is_recycled = true,
+			task_available = false,
 			update_ts = current_timestamp
 		where queue_id = in_queue_id
 			   ;
 	else
 		--call wave 
+		perform pg_notify('wave_validation_channel', (concat('{"queue_id":"',in_queue_id,'"}')::text));
+		update public.insval_queue 
+		set update_ts = current_timestamp
+		where queue_id = in_queue_id;
 	end if;
 	
 END;
@@ -42,8 +47,3 @@ END;
 
 $procedure$
 ;
-
--- Permissions
-
--- ALTER PROCEDURE public.wave_recycler(int4) OWNER TO babylon;
--- GRANT ALL ON PROCEDURE public.wave_recycler(int4) TO babylon;
