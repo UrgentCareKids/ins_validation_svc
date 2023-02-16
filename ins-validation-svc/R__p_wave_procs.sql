@@ -48,10 +48,12 @@ where
 
 with primary_ins as (
 select
+	wpj.create_ts create_ts,
 	wpj.queue_id , 
 	nullif(wpj.patient_id, '') patient_id ,
 	nullif(wpj.payername,'') payername ,
 	nullif(wpj.planname,'') planname ,
+	nullif(wpj.groupnumber,'') groupnumber, 
 	nullif(wpj.payercode,'') payercode ,
 	nullif(wpj.first_nm,'') first_nm ,
 	nullif(wpj.last_nm,'') last_nm ,
@@ -75,6 +77,7 @@ select
 	nullif(wpj2.payername,'') as payername2,
 	nullif(wpj2.planname,'') as planname2,
 	nullif(wpj2.payercode,'') as payercode2,
+	nullif(wpj2.groupnumber,'') groupnumber2, 
 	nullif(wpj2.first_nm,'') as first_nm2,
 	nullif(wpj2.last_nm,'') as last_nm2,
 	nullif(wpj2.middle_nm,'') as middle_nm2,
@@ -95,7 +98,7 @@ where
 
 
 select
-json_strip_nulls(json_build_object('primary_ins_id',i_pri_ins_id,'transaction_type','ins_validation','patient_id', p.patient_id, 'primary_ins_carrier', payername, 'primary_ins_plan', planname, 'primary_ext_ins_id', payercode, 'primary_ins_ph_first_name', first_nm, 'primary_ins_ph_last_name', last_nm, 'primary_ins_ph_middle_name', middle_nm, 'primary_ins_ph_dob', dob, 'primary_ins_ph_birth_sex', gender, 'primary_ins_ph_policy_start', policystart, 'primary_ins_ph_policy_end', policyend, 'secondary_ins_carrier', payername, 'secondary_ins_plan', planname, 'secondary_ext_ins_id', payercode2, 'secondary_ins_ph_first_name', first_nm2, 'secondary_ins_ph_last_name', last_nm2, 'secondary_ins_ph_middle_name', middle_nm2, 'secondary_ins_ph_dob', dob2, 'secondary_ins_ph_birth_sex', gender2, 'secondary_ins_ph_policy_start', policystart2, 'secondary_ins_ph_policy_end', policyend2))
+json_strip_nulls(json_build_object('secondary_ins_group_number', groupnumber2, 'primary_ins_group_id',groupnumber,'wave_ts',create_ts,'secondary_ins_id', i_sec_payer_code,'primary_ins_id',i_pri_ins_id,'transaction_type','ins_validation','id', p.patient_id, 'primary_ins_carrier', payername, 'primary_ins_plan', planname, 'primary_ext_ins_id', payercode, 'primary_ins_ph_first_name', first_nm, 'primary_ins_ph_last_name', last_nm, 'primary_ins_ph_middle_name', middle_nm, 'primary_ins_ph_dob', dob, 'primary_ins_ph_birth_sex', gender, 'primary_ins_ph_policy_start', policystart, 'primary_ins_ph_policy_end', policyend, 'secondary_ins_carrier', payername, 'secondary_ins_plan', planname, 'secondary_ext_ins_id', payercode2, 'secondary_ins_ph_first_name', first_nm2, 'secondary_ins_ph_last_name', last_nm2, 'secondary_ins_ph_middle_name', middle_nm2, 'secondary_ins_ph_dob', dob2, 'secondary_ins_ph_birth_sex', gender2, 'secondary_ins_ph_policy_start', policystart2, 'secondary_ins_ph_policy_end', policyend2))
 from
 into payload 
 primary_ins p
@@ -107,6 +110,7 @@ END;
 
 $procedure$
 ;
+
 
 CREATE OR REPLACE PROCEDURE public.manual_queue_loader()
  LANGUAGE plpgsql
