@@ -8,16 +8,21 @@ AS WITH queue_detail AS (
             wq.sent_to_wave,
             wq.create_ts,
             wq.update_ts,
+            wq.process_type,
+            wq.is_recycled,
+            wq.send_to_patient_service,
+            wq.task_available,
             wq.payer_code AS sent_payor_code,
                 CASE
                     WHEN wq.payer_code IS NULL THEN 'DISCO'::text
                     ELSE 'ELIG'::text
                 END AS request_type,
             (date_trunc('month'::text, now()) + '1 mon -1 days'::interval)::date AS month_end,
-            count(wq.visit_id) OVER (PARTITION BY wq.request_type, ((date_trunc('month'::text, now()) + '1 mon -1 days'::interval)::date) ORDER BY wq.request_type ROWS UNBOUNDED PRECEDING) AS monthly_request_cnt
+            count(wq.queue_id) OVER (PARTITION BY wq.request_type, ((date_trunc('month'::text, now()) + '1 mon -1 days'::interval)::date) ORDER BY wq.request_type ROWS UNBOUNDED PRECEDING) AS monthly_request_cnt
            FROM insval_queue wq
           ORDER BY wq.create_ts
-        ), cost AS (
+        ), 
+     wave_cost AS (
          SELECT qd.queue_id,
             qd.visit_id,
             qd.patient_id,
@@ -25,6 +30,10 @@ AS WITH queue_detail AS (
             qd.create_ts,
             qd.update_ts,
             qd.sent_payor_code,
+            qd.process_type,
+            qd.is_recycled,
+            qd.send_to_patient_service,
+            qd.task_available,
             qd.request_type,
             qd.month_end,
             qd.monthly_request_cnt,
@@ -39,11 +48,16 @@ AS WITH queue_detail AS (
                     queue_detail.update_ts,
                     queue_detail.sent_payor_code,
                     queue_detail.request_type,
+                    queue_detail.process_type,
+           			queue_detail.is_recycled,
+            		queue_detail.send_to_patient_service,
+            		queue_detail.task_available,
                     queue_detail.month_end,
                     queue_detail.monthly_request_cnt
                    FROM queue_detail) qd ON wc.request_type::text = qd.request_type
           WHERE qd.monthly_request_cnt < wc.request_amount AND wc.is_active = true
-        ), wave_response AS (
+        ), 
+  wave_response AS (
          SELECT wpj.queue_id,
             wpj.visit_id,
             wpj.ssn,
@@ -63,6 +77,10 @@ AS WITH queue_detail AS (
     c.update_ts,
     c.sent_payor_code,
     c.request_type,
+    c.process_type,
+    c.is_recycled,
+    c.send_to_patient_service,
+    c.task_available,
     c.month_end,
     c.monthly_request_cnt,
     c.request_cost,
@@ -79,11 +97,10 @@ AS WITH queue_detail AS (
      		WHEN c.request_type = 'ELIG'::text and c.sent_to_wave IS FALSE THEN 'Wave Eligibility Not Sent Yet'::text
             ELSE NULL::text
         END AS ins_found_status
-   FROM cost c
+   FROM wave_cost c
      LEFT JOIN wave_response wr ON wr.queue_id = c.queue_id AND wr.dedupe = 1
     -- LEFT JOIN insval_demographics mt ON mt.patient_id::text = c.patient_id::text
   WHERE c.rnk = 1
-  and c.request_type = 'DISCO'
   ORDER BY c.queue_id DESC;
   
  GRANT SELECT ON TABLE public.wave_queue_cost_reporting TO group readonly_access;  
