@@ -14,7 +14,6 @@ CREATE TABLE public.wave_benefit_estimation (
 
 -- Permissions
 
-ALTER TABLE public.wave_benefit_estimation OWNER TO babylon;
 GRANT SELECT ON TABLE public.wave_queue_cost_reporting TO group readonly_access;  
 
 
