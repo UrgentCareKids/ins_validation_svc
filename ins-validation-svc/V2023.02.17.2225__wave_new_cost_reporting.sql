@@ -14,7 +14,7 @@ CREATE TABLE public.wave_benefit_estimation (
 
 -- Permissions
 
-GRANT SELECT ON TABLE public.wave_queue_cost_reporting TO group readonly_access;  
+GRANT SELECT ON TABLE public.wave_benefit_estimation TO group readonly_access;  
 
 
 ---fill table 
