@@ -1,0 +1,1 @@
+alter table insval_queue add column send_to_patient_service boolean;
