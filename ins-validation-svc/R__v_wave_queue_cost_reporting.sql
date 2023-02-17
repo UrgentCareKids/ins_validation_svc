@@ -1,89 +1,115 @@
 --drop view if exists public.wave_queue_cost_reporting;
 
 CREATE OR REPLACE VIEW public.wave_queue_cost_reporting
-AS WITH queue_detail AS (
-         SELECT wq.queue_id,
-            wq.visit_id,
-            wq.patient_id,
-            wq.sent_to_wave,
-            wq.create_ts,
-            wq.update_ts,
-            wq.payer_code AS sent_payor_code,
-                CASE
-                    WHEN wq.payer_code IS NULL THEN 'DISCO'::text
-                    ELSE 'ELIG'::text
-                END AS request_type,
-            (date_trunc('month'::text, now()) + '1 mon -1 days'::interval)::date AS month_end,
-            count(wq.visit_id) OVER (PARTITION BY wq.request_type, ((date_trunc('month'::text, now()) + '1 mon -1 days'::interval)::date) ORDER BY wq.request_type ROWS UNBOUNDED PRECEDING) AS monthly_request_cnt
-           FROM insval_queue wq
-          ORDER BY wq.create_ts
-        ), cost AS (
-         SELECT qd.queue_id,
-            qd.visit_id,
-            qd.patient_id,
-            qd.sent_to_wave,
-            qd.create_ts,
-            qd.update_ts,
-            qd.sent_payor_code,
-            qd.request_type,
-            qd.month_end,
-            qd.monthly_request_cnt,
-            wc.request_cost,
-            row_number() OVER (PARTITION BY qd.queue_id, wc.request_type, qd.month_end ORDER BY wc.request_amount) AS rnk
-           FROM wave_cost wc
-             LEFT JOIN ( SELECT queue_detail.queue_id,
-                    queue_detail.visit_id,
-                    queue_detail.patient_id,
-                    queue_detail.sent_to_wave,
-                    queue_detail.create_ts,
-                    queue_detail.update_ts,
-                    queue_detail.sent_payor_code,
-                    queue_detail.request_type,
-                    queue_detail.month_end,
-                    queue_detail.monthly_request_cnt
-                   FROM queue_detail) qd ON wc.request_type::text = qd.request_type
-          WHERE qd.monthly_request_cnt < wc.request_amount AND wc.is_active = true
-        ), wave_response AS (
-         SELECT wpj.queue_id,
-            wpj.visit_id,
-            wpj.ssn,
-            wpj.coveragestatus,
-            wpj.payercode,
-            row_number() OVER (PARTITION BY wpj.queue_id) AS dedupe
-           FROM wave_parsed_json wpj
-          --WHERE wpj.coveragestatus::text = 'ACTIVE'::text and 
-          ORDER BY wpj.hierarchy_level
-        )
- select -- mt.patient_id AS master_id,
-    c.queue_id,
-    c.visit_id,
-    c.patient_id,
-    c.sent_to_wave,
-    c.create_ts,
-    c.update_ts,
-    c.sent_payor_code,
-    c.request_type,
-    c.month_end,
-    c.monthly_request_cnt,
-    c.request_cost,
-    c.rnk,
-    wr.ssn,
-    wr.coveragestatus,
-    wr.payercode,
-        CASE
-            WHEN wr.payercode::text <> 'DISCO'::text AND c.request_type = 'DISCO'::text AND c.sent_to_wave IS TRUE THEN 'Wave Insurance Found'::text
-            WHEN (wr.payercode::text = 'DISCO'::text or wr.payercode is null) AND c.request_type = 'DISCO'::text AND c.sent_to_wave IS TRUE THEN 'Wave Insurance Not Found'::text
-            WHEN wr.coveragestatus::text = 'ACTIVE'::text AND c.request_type = 'ELIG'::text AND c.sent_to_wave IS TRUE THEN 'Wave Insurance Validated'::text
-            WHEN (wr.coveragestatus::text <> 'ACTIVE'::text or wr.coveragestatus is null) AND c.request_type = 'ELIG'::text AND c.sent_to_wave IS TRUE THEN 'Wave Insurance Not Validated'::text
-     		WHEN c.request_type = 'DISCO'::text and c.sent_to_wave IS FALSE THEN 'Wave Request Not Sent Yet'::text
-     		WHEN c.request_type = 'ELIG'::text and c.sent_to_wave IS FALSE THEN 'Wave Eligibility Not Sent Yet'::text
-            ELSE NULL::text
-        END AS ins_found_status
-   FROM cost c
-     LEFT JOIN wave_response wr ON wr.queue_id = c.queue_id AND wr.dedupe = 1
-    -- LEFT JOIN insval_demographics mt ON mt.patient_id::text = c.patient_id::text
-  WHERE c.rnk = 1
-  and c.request_type = 'DISCO'
-  ORDER BY c.queue_id DESC;
+as
+
+
+with wave_stats_detail as (
+	select
+	wpj.queue_id,
+	wpj.insurance_name,
+	wpj.coveragestatus,
+	wpj.confidencelevel,
+	wpj.payercode,
+	wpj.hierarchy_level,
+	wpj.create_ts,
+	coalesce(iq.request_type , riq.request_type) request_type,
+	row_number() over (partition by wpj.queue_id order by hierarchy_level asc) as dedupe_queue_id
+	from
+	wave_parsed_json wpj
+	left join rdshft_insval_queue riq on wpj.queue_id = riq.queue_id
+	left join insval_queue iq on wpj.queue_id = iq.queue_id
+	where wpj.queue_id is not null
+),
+
+wave_monthly_vol as (
+	select (date_trunc('month', create_ts) + interval '1 month' - interval '1 day')::date as eomonth, request_type, count(queue_id) as volume,
+	sum(case when ((payercode <> 'DISCO'::text or payercode is not null) AND request_type = 'DISCO' and coveragestatus = 'ACTIVE' and confidencelevel = 1 ) then 1 else 0 end )  AS disco_success_count,
+	sum(case when (request_type = 'ELIG' and coveragestatus = 'ACTIVE' and confidencelevel = 1 ) then 1 else 0 end )  AS elig_success_count	
+    from wave_stats_detail
+	where dedupe_queue_id = 1
+	group by 1,2
+),
+
+wave_costs as (
+	select wmv.*,
+	lvl_1.request_cost lvl1_rate,
+	case when volume > lvl_1.request_amount then lvl_1.request_amount*lvl_1.request_cost else volume*lvl_1.request_cost end lvl1_cost,
+	lvl_2.request_cost lvl2_rate,
+	--when the voumes are between level 1 and level 2 then sum the excess volumes and multiply by level 2 rate
+	case when (volume > lvl_1.request_amount and volume < lvl_2.request_amount) then (volume - lvl_1.request_amount)*lvl_2.request_cost
+	-- if my volume is greater then level 2, then charge max lvl 2 cost
+	when volume > lvl_2.request_amount then (lvl_2.request_amount-lvl_1.request_amount)*lvl_2.request_cost
+	else 0 end lvl2_cost,
+	
+	lvl_3.request_cost lvl3_rate,
+	--when the voumes are between level 2 and level 3 then sum the excess volumes and multiply by level 3 rate
+	case when (volume > lvl_2.request_amount and volume < lvl_3.request_amount) then (volume - lvl_2.request_amount)*lvl_3.request_cost
+	-- if my volume is greater then level 3, then charge max lvl 3 cost
+	when volume > lvl_3.request_amount then (lvl_3.request_amount-lvl_2.request_amount)*lvl_3.request_cost
+	else 0 end lvl3_cost,
+	
+	lvl_4.request_cost lvl4_rate,
+		--when the voumes are between level 3 and level 4 then sum the excess volumes and multiply by level 4 rate
+	case when (volume > lvl_3.request_amount and volume < lvl_4.request_amount) then (volume - lvl_3.request_amount)*lvl_4.request_cost
+	-- if my volume is greater then level 4, then charge max lvl 4 cost
+	when volume > lvl_4.request_amount then (lvl_4.request_amount-lvl_3.request_amount)*lvl_4.request_cost
+	else 0 end lvl4_cost,
+	
+	lvl_5.request_cost lvl5_rate,
+		--when the voumes are between level 4 and level 5 then sum the excess volumes and multiply by level 5 rate
+	case when (volume > lvl_4.request_amount and volume < lvl_5.request_amount) then (volume - lvl_4.request_amount)*lvl_5.request_cost
+	-- if my volume is greater then level 5, then charge max lvl 5 cost
+	when volume > lvl_5.request_amount then (lvl_5.request_amount-lvl_4.request_amount)*lvl_5.request_cost
+	else 0 end lvl5_cost,
+	
+	lvl_6.request_cost lvl6_rate,
+		--when the voumes are between level 5 and level 6 then sum the excess volumes and multiply by level 6 rate
+	case when (volume > lvl_5.request_amount and volume < lvl_6.request_amount) then (volume - lvl_5.request_amount)*lvl_6.request_cost
+	-- if my volume is greater then level 6, then charge max lvl 6 cost
+	when volume > lvl_6.request_amount then (lvl_6.request_amount-lvl_5.request_amount)*lvl_6.request_cost
+	else 0 end lvl6_cost
+	
+	from wave_monthly_vol wmv
+	left join wave_cost lvl_1 on wmv.request_type = lvl_1.request_type and lvl_1.request_rank = 1 and lvl_1.is_active is true
+	left join wave_cost lvl_2 on wmv.request_type = lvl_2.request_type and lvl_2.request_rank = 2 and lvl_2.is_active is true
+	left join wave_cost lvl_3 on wmv.request_type = lvl_3.request_type and lvl_3.request_rank = 3 and lvl_3.is_active is true
+	left join wave_cost lvl_4 on wmv.request_type = lvl_4.request_type and lvl_4.request_rank = 4 and lvl_4.is_active is true
+	left join wave_cost lvl_5 on wmv.request_type = lvl_5.request_type and lvl_5.request_rank = 5 and lvl_5.is_active is true
+	left join wave_cost lvl_6 on wmv.request_type = lvl_6.request_type and lvl_6.request_rank = 6 and lvl_6.is_active is true
+),
+
+wave_benefit as (
+	select  eomonth, wmv.request_type, 
+		 (disco_success_count* disco_benefit.benefit_time_per_hour)::numeric  as disco_time_saved,
+		 (disco_success_count * (disco_benefit.benefit_time_per_hour * disco_benefit.benefit_amount ))::numeric as disco_revenue,
+		 (elig_success_count * elig_benefit.benefit_time_per_hour)::numeric  as elig_time_saved,
+		 (elig_success_count * (elig_benefit.benefit_time_per_hour * elig_benefit.benefit_amount ))::numeric as elig_revenue
+	from wave_monthly_vol wmv
+	left join wave_benefit_estimation disco_benefit on wmv.request_type = disco_benefit.request_type and disco_benefit.benefit_type = 'wave_disco_benefit'
+	left join wave_benefit_estimation elig_benefit on wmv.request_type = elig_benefit.request_type and elig_benefit.benefit_type = 'wave_eligibilty_benefit'
+)
+
+select 
+	wc.eomonth, 
+	wc.request_type, 
+	wc.volume, 
+	wc.disco_success_count, 
+	wc.elig_success_count,
+	wb.disco_revenue , 
+	wb.elig_time_saved, 
+	wb.elig_revenue, 
+	 COALESCE(lvl1_cost,0) + COALESCE(lvl2_cost,0) + COALESCE(lvl3_cost,0) + COALESCE(lvl4_cost,0) + COALESCE(lvl5_cost,0) + COALESCE(lvl6_cost,0) as sum_cost,
+	 --return on investment = revenue - cost
+ 	COALESCE (elig_revenue, disco_revenue) - (COALESCE(lvl1_cost,0) + COALESCE(lvl2_cost,0) + COALESCE(lvl3_cost,0) + COALESCE(lvl4_cost,0) + COALESCE(lvl5_cost,0) + COALESCE(lvl6_cost,0) ) as wave_roi
+from wave_costs wc
+left join wave_benefit wb on wc.eomonth = wb.eomonth and wc.request_type = wb.request_type
+;
+
+----permissions to looker
+ GRANT SELECT ON TABLE public.wave_queue_cost_reporting TO group readonly_access;  
+
+
+
   
  GRANT SELECT ON TABLE public.wave_queue_cost_reporting TO group readonly_access;  
